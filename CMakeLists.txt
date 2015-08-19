@@ -18,8 +18,8 @@ find_package(catkin REQUIRED COMPONENTS
 
 find_package(PCL 1.8 EXACT REQUIRED)
 
-find_package(VTK REQUIRED)
-include(${VTK_USE_FILE})
+#find_package(VTK REQUIRED)
+#include(${VTK_USE_FILE})
 
 include_directories(${PCL_INCLUDE_DIRS})
 link_directories(${PCL_LIBRARY_DIRS})
@@ -183,5 +183,5 @@ add_executable(object_separator src/ObjSeg_main.cpp
                                 src/ObjSeg.cpp)
 target_link_libraries(object_separator ${catkin_LIBRARIES})
 target_link_libraries(object_separator ${OpenCV_LIBRARIES})
-target_link_libraries(object_separator ${VTK_LIBRARIES})
+#target_link_libraries(object_separator ${VTK_LIBRARIES})
 target_link_libraries(object_separator ${PCL_LIBRARIES})

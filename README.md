@@ -5,8 +5,8 @@ This is not not complete (or even fully functional yet), nor have I had time to 
 ###Build & Run
 
 - Go to http://pointclouds.org/downloads/
-- Install the newest **unstable** version of PCL, which is verion 1.8 (this is required for the stuff Andreas suggested).
-- Install the newest version of pcl/ros stuff (I installed it to my /home directory, so that it wouldn't screw with my ros indigo version.
+- Install the newest **unstable** version of PCL, which is verion 1.8 (this is required for the stuff Andreas suggested).  (I installed it at /home
+- Install the newest version of pcl/ros stuff (I installed it at my /home directory, so that it wouldn't screw with my ros indigo version.
 - You should now be able to ```catkin_make``` this node
 - Now...finish implementing it, or use it for reference, etc.
 

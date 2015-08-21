@@ -46,6 +46,11 @@
 #include <pcl/segmentation/lccp_segmentation.h> //PCL version 1.8.0 or greater
 
 #include <vtkRenderWindow.h>
+#include <vtkImageReader2Factory.h>
+#include <vtkImageReader2.h>
+#include <vtkImageData.h>
+#include <vtkImageFlip.h>
+#include <vtkPolyLine.h>
 
 #include <opencv/cv.h>
 #include <image_transport/image_transport.h>

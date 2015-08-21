@@ -16,3 +16,12 @@ References: https://github.com/PointCloudLibrary/pcl/blob/master/apps/src/openni
 
 **NOTE**: When the PCL Visualizer first starts, the screen will be filled with these green and red blobs of color.  However, once you move rotate the visualizer scene even a little, it will display the correct pointcloud.
 
+
+**Bugs & TODO**
+- if I remove an object while the node is running, in continues drawing that objects "color" on the location, so some variable is obviously not being reset at each iteration.
+- The viewer is displaying the image upside down (i.e. roteted 180 degrees--gotta fix this).
+- modify parameters--I think a at least some of them are application specific (i.e. they will work for a performing the segmentation assuming a relative distance, object size, etc.).
+- Not pubishing any significant ROS data.
+- During runtime, a PCL warning message is printed.
+- In the PCL example, normalization appears to be optional (unless I read it wrong) so I omitted this.  However, this should probably be incorporated back into the code.
+ 

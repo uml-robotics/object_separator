@@ -29,23 +29,26 @@ void ObjSeg::callback(const PointCloud<PointXYZRGBA>::ConstPtr& input)
     PointCloud<PointXYZRGBA>::Ptr result(new PointCloud<PointXYZRGBA>);
     cloudCopy = input;
     copyPointCloud(*cloudCopy, *result);
-    
+    /*
     //--------------------------------------------------------
     
     unsigned char red[6] = {255,   0,   0, 255, 255,   0};
     unsigned char grn[6] = {  0, 255,   0, 255,   0, 255};
     unsigned char blu[6] = {  0,   0, 255,   0, 255, 255};
     
+    //Set up normal estimation
     pcl::IntegralImageNormalEstimation<PointXYZRGBA, pcl::Normal> ne;
     ne.setNormalEstimationMethod(ne.COVARIANCE_MATRIX);
     ne.setMaxDepthChangeFactor(0.03f);
     ne.setNormalSmoothingSize(20.0f);
     
+    //Set up organized multi plane segmentation
     pcl::OrganizedMultiPlaneSegmentation<PointXYZRGBA, pcl::Normal, pcl::Label> mps;
     mps.setMinInliers(10000);
     mps.setAngularThreshold(0.017453 * 2.0); //3 degrees
     mps.setDistanceThreshold(0.02); //2cm
     
+    //Set up vars to contain planar regions
     std::vector<pcl::PlanarRegion<PointXYZRGBA>, Eigen::aligned_allocator<pcl::PlanarRegion<PointXYZRGBA> > > regions;
     pcl::PointCloud<PointXYZRGBA>::Ptr contour(new pcl::PointCloud<PointXYZRGBA>);
     size_t prev_models_size = 0;
@@ -68,13 +71,14 @@ void ObjSeg::callback(const PointCloud<PointXYZRGBA>::ConstPtr& input)
     pcl::PointCloud<PointXYZRGBA>::Ptr cluster (new pcl::PointCloud<PointXYZRGBA>);
     
     cout << "------Results------" << endl;
-    cout << "Number of regions: " << regions.size() << endl;
-    
+    cout << "Number of planar regions: " << regions.size() << endl;
+    */
     pclCloud = cloudCopy;
-    //cout << "calling lccp" << endl;
+    cout << "calling lccp" << endl;
     lccpSeg();
     
     //Draw Visualization (is this even doing anything?)
+    /*
     for (size_t i = 0; i < regions.size(); i++)
     {
         Eigen::Vector3f centroid = regions[i].getCentroid();
@@ -103,11 +107,11 @@ void ObjSeg::callback(const PointCloud<PointXYZRGBA>::ConstPtr& input)
         //plane_labels.resize(label_indices.size(), false);
     }
     
-    
+    */
     
     //--------------------------------------------------------
     //pclCloud = cloudCopy;
-    showVisualizer();
+    //showVisualizer();
     
     sensor_msgs::Image rosImage;
     pcl::toROSMsg(*result, rosImage);
@@ -150,6 +154,13 @@ void ObjSeg::lccpSeg()
     uint32_t min_segment_size = 0;
     bool use_extended_convexity = false;
     bool use_sanity_criterion = false;
+    
+    /*pcl::PointCloud<pcl::Normal>::Ptr normals (new pcl::PointCLoud<pcl::Normal>);
+    bool has_normals = false;
+    if(pcl::getFieldIndex(pclCloud, "normal_x") >= 0)
+    {
+        
+    }*/
 
     pcl::SupervoxelClustering<PointXYZRGBA> superVox(voxel_resolution, seed_resolution);
 
@@ -157,7 +168,7 @@ void ObjSeg::lccpSeg()
 
     superVox.setInputCloud(pclCloud);
     //if(has_normals)
-        superVox.setNormalCloud(m_normalCloud);
+        //superVox.setNormalCloud(m_normalCloud);
     superVox.setColorImportance(color_importance);
     superVox.setSpatialImportance(spatial_importance);
     superVox.setNormalImportance(normal_importance);
@@ -205,7 +216,92 @@ void ObjSeg::lccpSeg()
     pcl::LCCPSegmentation<PointXYZRGBA>::SupervoxelAdjacencyList sv_adjacency_list;
     lccp.getSVAdjacencyList(sv_adjacency_list);  // Needed for visualization
     
+    cout << "# of supervoxel clusters: " << supervoxel_clusters.size() << endl;
     
+    
+    //visualization stuff
+    
+    typedef LCCPSegmentation<PointXYZRGBA>::VertexIterator VertexIterator;
+    typedef LCCPSegmentation<PointXYZRGBA>::AdjacencyIterator AdjacencyIterator;
+    typedef LCCPSegmentation<PointXYZRGBA>::EdgeID EdgeID;
+    
+    std::set<EdgeID> edge_drawn;
+    
+    const unsigned char convex_color [3] = {255, 255, 255};
+    const unsigned char concave_color [3] = {255, 0, 0};
+    const unsigned char* color;
+    
+    //The vertices in the supervoxel adjacency list are the supervoxel centroids
+    //This iterates through them, finding the edges
+    std::pair<VertexIterator, VertexIterator> vertex_iterator_range;
+    vertex_iterator_range = boost::vertices (sv_adjacency_list);
+    
+    
+    // Create a cloud of the voxelcenters and map: VertexID in adjacency graph -> Point index in cloud
+    vtkSmartPointer<vtkPoints> points = vtkSmartPointer<vtkPoints>::New ();
+    vtkSmartPointer<vtkCellArray> cells = vtkSmartPointer<vtkCellArray>::New ();
+    vtkSmartPointer<vtkUnsignedCharArray> colors = vtkSmartPointer<vtkUnsignedCharArray>::New ();
+    colors->SetNumberOfComponents (3);
+    colors->SetName ("Colors");
+    
+    // Create a polydata to store everything in
+    vtkSmartPointer<vtkPolyData> polyData = vtkSmartPointer<vtkPolyData>::New ();
+    for (VertexIterator itr = vertex_iterator_range.first; itr != vertex_iterator_range.second; ++itr)
+    {
+      const uint32_t sv_label = sv_adjacency_list[*itr];
+      std::pair<AdjacencyIterator, AdjacencyIterator> neighbors = boost::adjacent_vertices (*itr, sv_adjacency_list);
+
+      for (AdjacencyIterator itr_neighbor = neighbors.first; itr_neighbor != neighbors.second; ++itr_neighbor)
+      {
+        EdgeID connecting_edge = boost::edge (*itr, *itr_neighbor, sv_adjacency_list).first;  //Get the edge connecting these supervoxels
+        if (sv_adjacency_list[connecting_edge].is_convex)
+          color = convex_color;
+        else
+          color = concave_color;
+        
+        // two times since we add also two points per edge
+        colors->InsertNextTupleValue (color);
+        colors->InsertNextTupleValue (color);
+        
+        pcl::Supervoxel<PointXYZRGBA>::Ptr supervoxel = supervoxel_clusters.at (sv_label);
+        pcl::PointXYZRGBA vert_curr = supervoxel->centroid_;
+        
+        
+        const uint32_t sv_neighbor_label = sv_adjacency_list[*itr_neighbor];
+        pcl::Supervoxel<PointXYZRGBA>::Ptr supervoxel_neigh = supervoxel_clusters.at (sv_neighbor_label);
+        pcl::PointXYZRGBA vert_neigh = supervoxel_neigh->centroid_;
+        
+        points->InsertNextPoint (vert_curr.data);
+        points->InsertNextPoint (vert_neigh.data);
+          
+        // Add the points to the dataset
+        vtkSmartPointer<vtkPolyLine> polyLine = vtkSmartPointer<vtkPolyLine>::New ();
+        polyLine->GetPointIds ()->SetNumberOfIds (2);
+        polyLine->GetPointIds ()->SetId (0, points->GetNumberOfPoints ()-2);
+        polyLine->GetPointIds ()->SetId (1, points->GetNumberOfPoints ()-1);
+        cells->InsertNextCell (polyLine);
+      }
+    }
+    
+    
+    polyData->SetPoints (points);
+    // Add the lines to the dataset
+    polyData->SetLines (cells);
+    
+    polyData->GetPointData ()->SetScalars (colors);
+    
+    //END: Calculate visualization of adjacency graph
+
+    //Configure Visualizer
+    //pcl::visualization::PCLVisualizer::Ptr viewer (new pcl::visualization::PCLVisualizer ("3D Viewer"));
+    //viewer->setBackgroundColor (0, 0, 0);
+    //viewer->registerKeyboardCallback (keyboardEventOccurred, 0);
+    viewer->addPointCloud(lccp_labeled_cloud, "maincloud");
+    
+    
+    
+    //pclCloud = cloudCopy;
+    showVisualizer();
 }
 
 

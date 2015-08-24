@@ -2,7 +2,7 @@
  * File: ObjSeg.h
  * Author: James Kuczynski
  * Email: jkuczyns@cs.uml.edu
- * File Description: This class performs object segmentation.  It utilizes the most current unstable versions of PCL and PCL_ROS (1.8).  See the README file for more details.
+ * File Description: This class performs object segmentation using PCL's LCCPSegmentation API.  It utilizes the most current unstable versions of PCL and PCL_ROS (1.8).  See the README file for more details.
  *
  * References: https://github.com/PointCloudLibrary/pcl/blob/master/apps/src/openni_organized_multi_plane_segmentation.cpp
                https://github.com/DeepBlue14/raptor/blob/master/measurements/src/Raptor_Segmentation.cpp
@@ -13,17 +13,20 @@
 #ifndef OBJ_SEG_H
 #define OBJ_SEG_H
 
+// ROS
 #include <ros/ros.h>
-
 #include <sensor_msgs/Image.h>
 #include <sensor_msgs/PointCloud2.h>
 #include <geometry_msgs/Point.h>
 
+// ROS <--> PCL conversions
 #include <pcl_conversions/pcl_conversions.h>
 #include <pcl_ros/point_cloud.h>
+
+
+// PCL
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
-
 #include <pcl/io/io.h>
 #include <pcl/common/time.h>
 #include <pcl/common/angles.h>
@@ -45,6 +48,7 @@
 
 #include <pcl/segmentation/lccp_segmentation.h> //PCL version 1.8.0 or greater
 
+// VTK
 #include <vtkRenderWindow.h>
 #include <vtkImageReader2Factory.h>
 #include <vtkImageReader2.h>
@@ -52,6 +56,7 @@
 #include <vtkImageFlip.h>
 #include <vtkPolyLine.h>
 
+// OpenCV
 #include <opencv/cv.h>
 #include <image_transport/image_transport.h>
 #include <cv_bridge/cv_bridge.h>
@@ -60,6 +65,7 @@
 #include <opencv2/imgproc/imgproc.hpp>
 #include <opencv2/highgui/highgui.hpp>
 
+// STL
 #include <math.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -87,12 +93,48 @@ class ObjSeg
 	    Publisher* pub;
 
     public:
+        /**
+         * Constructor.
+         */
 	    ObjSeg();
+	    
+	    /**
+	     * This method initializes the 3D visualizer.
+	     *
+	     * @param cloud an empty pcl::PointCloud object to initialize the viewer.
+	     * @return a reference to the viewer.
+	     */
 	    pcl::visualization::PCLVisualizer::Ptr initViewer(pcl::PointCloud<PointXYZRGBA>::ConstPtr cloud);
+	    
+	    /**
+	     * This method updates the pointcloud viewer.
+	     *
+	     * @param viewer reference to the pointcloud viewer.
+	     * @param cloud reference to the current processed pointcloud.
+	     */
 	    void updateVisualizer(pcl::visualization::PCLVisualizer::Ptr viewer, pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr cloud);
+	    
+	    /**
+	     * This method displays the viewer.
+	     */
 	    void showVisualizer();
+	    
+	    /**
+	     * This method is the ROS callback.  It converts the ROS pointcloud to a PCL pointcloud,
+	     * calls segmentation and visualization methods. TODO Publish data.
+	     *
+	     * @param input the ROS pointcloud.
+	     */
 	    void callback(const PointCloud<PointXYZRGBA>::ConstPtr& input);
+	    
+	    /**
+	     * This method performs a PCL LCCP segmentation.
+	     */
         void lccpSeg();
+        
+        /**
+         * TODO implement.
+         */
         void llcpViewSetup();
         //void displayPlanarRegions
         //void displayEuclideanClusters
@@ -101,7 +143,17 @@ class ObjSeg
         //void removePreviousDataFromScreen
         //...
         //...
+        
+        /**
+         * Accessor method for the ROS publisher.
+         *
+         * @return a pointer to the ROS publisher.
+         */
 	    Publisher* getPublisher();
+	    
+	    /**
+	     * Destructor.
+	     */
 	    ~ObjSeg();
 
 };

@@ -10,10 +10,9 @@ ObjSeg::ObjSeg()
 
 pcl::visualization::PCLVisualizer::Ptr ObjSeg::initViewer(pcl::PointCloud<PointXYZRGBA>::ConstPtr cloud)
 {
-    pcl::visualization::PCLVisualizer::Ptr viewer(new pcl::visualization::PCLVisualizer("Viewer"));
+    pcl::visualization::PCLVisualizer::Ptr viewer(new pcl::visualization::PCLVisualizer("Viewer") );
     viewer->setBackgroundColor (0, 0, 0);
     pcl::visualization::PointCloudColorHandlerCustom<PointXYZRGBA> single_color(cloud, 0, 255, 0);
-    //viewer->addPointCloud<PointXYZRGBA>(cloud, single_color, "cloud");
     viewer->setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 1, "cloud");
     viewer->setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_OPACITY, 0.15, "cloud");
     viewer->addCoordinateSystem(1.0);
@@ -31,10 +30,8 @@ void ObjSeg::callback(const PointCloud<PointXYZRGBA>::ConstPtr& input)
     copyPointCloud(*cloudCopy, *result);
 
     pclCloud = cloudCopy;
-    cout << "calling lccp" << endl;
-    lccpSeg();
-    
 
+    lccpSeg();
     
     sensor_msgs::Image rosImage;
     pcl::toROSMsg(*result, rosImage);
@@ -46,7 +43,6 @@ void ObjSeg::updateVisualizer(pcl::visualization::PCLVisualizer::Ptr viewer, pcl
 {
     pcl::visualization::PointCloudColorHandlerRGBField<pcl::PointXYZRGBA> rgb(cloud);
     viewer->removePointCloud();
-    //viewer->addPointCloud<pcl::PointXYZRGBA>(cloud, rgb);
     viewer->addPointCloud(resultCloud);
     viewer->spinOnce(/*100*/);
 }
@@ -79,6 +75,7 @@ void ObjSeg::lccpSeg()
     bool use_extended_convexity = false;
     bool use_sanity_criterion = false;
     
+    // Normals stuff (not implemented)
     /*pcl::PointCloud<pcl::Normal>::Ptr normals (new pcl::PointCLoud<pcl::Normal>);
     bool has_normals = false;
     if(pcl::getFieldIndex(pclCloud, "normal_x") >= 0)
@@ -87,10 +84,9 @@ void ObjSeg::lccpSeg()
     }*/
 
     pcl::SupervoxelClustering<PointXYZRGBA> superVox(voxel_resolution, seed_resolution);
-
     superVox.setUseSingleCameraTransform(use_single_cam_transform); //!!!Not available in verion 1.7; requires >= 1.8.0!!!
-
     superVox.setInputCloud(pclCloud);
+    
     //if(has_normals)
         //superVox.setNormalCloud(m_normalCloud);
     superVox.setColorImportance(color_importance);
@@ -98,20 +94,20 @@ void ObjSeg::lccpSeg()
     superVox.setNormalImportance(normal_importance);
     std::map<uint32_t, pcl::Supervoxel<PointXYZRGBA>::Ptr> supervoxel_clusters;
     
-    PCL_INFO("About to extract supervoxels\n");
+    //PCL_INFO("About to extract supervoxels\n");
     superVox.extract(supervoxel_clusters);
     
     if(use_supervoxel_refinement)
     {
-        PCL_INFO("About to refine supervoxels\n");
+        //PCL_INFO("About to refine supervoxels\n");
         superVox.refineSupervoxels(2, supervoxel_clusters);
     }
     
     std::stringstream temp;
-    temp << " Number of supervoxels: " << supervoxel_clusters.size() << "\n";
-    PCL_INFO(temp.str().c_str() );
+    //temp << " Number of supervoxels: " << supervoxel_clusters.size() << "\n";
+    //PCL_INFO(temp.str().c_str() );
     
-    PCL_INFO("About to process supervoxel adjacency\n");
+    //PCL_INFO("About to process supervoxel adjacency\n");
     std::multimap<uint32_t, uint32_t> supervoxel_adjacency;
     superVox.getSupervoxelAdjacency(supervoxel_adjacency);
     
@@ -119,7 +115,7 @@ void ObjSeg::lccpSeg()
     pcl::PointCloud<pcl::PointNormal>::Ptr sv_centroid_normal_cloud = pcl::SupervoxelClustering<PointXYZRGBA>::makeSupervoxelNormalCloud (supervoxel_clusters);
 
     // The Main Step: Perform LCCPSegmentation
-    PCL_INFO("About to run LCCPSegmentation\n");
+    //PCL_INFO("About to run LCCPSegmentation\n");
     pcl::LCCPSegmentation<PointXYZRGBA> lccp;
     lccp.setConcavityToleranceThreshold(concavity_tolerance_threshold);
     lccp.setSanityCheck(use_sanity_criterion);
@@ -129,22 +125,20 @@ void ObjSeg::lccpSeg()
     
     if(min_segment_size > 0)
     {
-        PCL_INFO("About to merge small segments\n");
+        //PCL_INFO("About to merge small segments\n");
         lccp.mergeSmallSegments(min_segment_size);
     }
     
-    PCL_INFO ("Interpolation voxel cloud -> input cloud and relabeling\n");
+    //PCL_INFO("Interpolation voxel cloud -> input cloud and relabeling\n");
     pcl::PointCloud<pcl::PointXYZL>::Ptr sv_labeled_cloud = superVox.getLabeledCloud();
     pcl::PointCloud<pcl::PointXYZL>::Ptr lccp_labeled_cloud = sv_labeled_cloud->makeShared();
     lccp.relabelCloud(*lccp_labeled_cloud);
     pcl::LCCPSegmentation<PointXYZRGBA>::SupervoxelAdjacencyList sv_adjacency_list;
-    lccp.getSVAdjacencyList(sv_adjacency_list);  // Needed for visualization
+    lccp.getSVAdjacencyList(sv_adjacency_list); // Needed for visualization
     
-    cout << "# of supervoxel clusters: " << supervoxel_clusters.size() << endl;
-    
+    //cout << "# of supervoxel clusters: " << supervoxel_clusters.size() << endl;
     
     //visualization stuff
-    
     typedef LCCPSegmentation<PointXYZRGBA>::VertexIterator VertexIterator;
     typedef LCCPSegmentation<PointXYZRGBA>::AdjacencyIterator AdjacencyIterator;
     typedef LCCPSegmentation<PointXYZRGBA>::EdgeID EdgeID;
@@ -177,7 +171,7 @@ void ObjSeg::lccpSeg()
 
       for (AdjacencyIterator itr_neighbor = neighbors.first; itr_neighbor != neighbors.second; ++itr_neighbor)
       {
-        EdgeID connecting_edge = boost::edge (*itr, *itr_neighbor, sv_adjacency_list).first;  //Get the edge connecting these supervoxels
+        EdgeID connecting_edge = boost::edge (*itr, *itr_neighbor, sv_adjacency_list).first; //Get the edge connecting these supervoxels
         if (sv_adjacency_list[connecting_edge].is_convex)
           color = convex_color;
         else
@@ -207,25 +201,13 @@ void ObjSeg::lccpSeg()
       }
     }
     
-    
     polyData->SetPoints (points);
     // Add the lines to the dataset
     polyData->SetLines (cells);
-    
     polyData->GetPointData ()->SetScalars (colors);
-    
-    //END: Calculate visualization of adjacency graph
 
-    //Configure Visualizer
-    //pcl::visualization::PCLVisualizer::Ptr viewer (new pcl::visualization::PCLVisualizer ("3D Viewer"));
-    //viewer->setBackgroundColor (0, 0, 0);
-    //viewer->registerKeyboardCallback (keyboardEventOccurred, 0);
+    //Update Visualizer
     resultCloud = lccp_labeled_cloud;
-    //viewer->addPointCloud(lccp_labeled_cloud, "maincloud");
-    
-    
-    
-    //pclCloud = cloudCopy;
     showVisualizer();
 }
 

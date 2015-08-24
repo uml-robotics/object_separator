@@ -82,6 +82,7 @@ class ObjSeg
     private:
         pcl::PointCloud<PointXYZRGBA>::ConstPtr pclCloud;
         pcl::PointCloud<pcl::Normal>::Ptr m_normalCloud;
+        pcl::PointCloud<pcl::PointXYZL>::Ptr resultCloud;
         pcl::visualization::PCLVisualizer::Ptr viewer;
 	    Publisher* pub;
 

@@ -13,7 +13,7 @@ pcl::visualization::PCLVisualizer::Ptr ObjSeg::initViewer(pcl::PointCloud<PointX
     pcl::visualization::PCLVisualizer::Ptr viewer(new pcl::visualization::PCLVisualizer("Viewer"));
     viewer->setBackgroundColor (0, 0, 0);
     pcl::visualization::PointCloudColorHandlerCustom<PointXYZRGBA> single_color(cloud, 0, 255, 0);
-    viewer->addPointCloud<PointXYZRGBA>(cloud, single_color, "cloud");
+    //viewer->addPointCloud<PointXYZRGBA>(cloud, single_color, "cloud");
     viewer->setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 1, "cloud");
     viewer->setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_OPACITY, 0.15, "cloud");
     viewer->addCoordinateSystem(1.0);
@@ -29,89 +29,12 @@ void ObjSeg::callback(const PointCloud<PointXYZRGBA>::ConstPtr& input)
     PointCloud<PointXYZRGBA>::Ptr result(new PointCloud<PointXYZRGBA>);
     cloudCopy = input;
     copyPointCloud(*cloudCopy, *result);
-    /*
-    //--------------------------------------------------------
-    
-    unsigned char red[6] = {255,   0,   0, 255, 255,   0};
-    unsigned char grn[6] = {  0, 255,   0, 255,   0, 255};
-    unsigned char blu[6] = {  0,   0, 255,   0, 255, 255};
-    
-    //Set up normal estimation
-    pcl::IntegralImageNormalEstimation<PointXYZRGBA, pcl::Normal> ne;
-    ne.setNormalEstimationMethod(ne.COVARIANCE_MATRIX);
-    ne.setMaxDepthChangeFactor(0.03f);
-    ne.setNormalSmoothingSize(20.0f);
-    
-    //Set up organized multi plane segmentation
-    pcl::OrganizedMultiPlaneSegmentation<PointXYZRGBA, pcl::Normal, pcl::Label> mps;
-    mps.setMinInliers(10000);
-    mps.setAngularThreshold(0.017453 * 2.0); //3 degrees
-    mps.setDistanceThreshold(0.02); //2cm
-    
-    //Set up vars to contain planar regions
-    std::vector<pcl::PlanarRegion<PointXYZRGBA>, Eigen::aligned_allocator<pcl::PlanarRegion<PointXYZRGBA> > > regions;
-    pcl::PointCloud<PointXYZRGBA>::Ptr contour(new pcl::PointCloud<PointXYZRGBA>);
-    size_t prev_models_size = 0;
-    char name[1024];
-    
-    //compute normalization
-    regions.clear();
-    pcl::PointCloud<pcl::Normal>::Ptr normal_cloud(new pcl::PointCloud<pcl::Normal>);
-    m_normalCloud = normal_cloud;
-    ne.setInputCloud(cloudCopy);
-    ne.compute(*normal_cloud);
-    cout << "Normal Estimation finished " << endl;
-    
-    //extract planes
-    mps.setInputNormals(normal_cloud);
-    mps.setInputCloud(cloudCopy);
-    mps.segmentAndRefine(regions);
-    cout << "Plane extraction completed " << endl;
-    
-    pcl::PointCloud<PointXYZRGBA>::Ptr cluster (new pcl::PointCloud<PointXYZRGBA>);
-    
-    cout << "------Results------" << endl;
-    cout << "Number of planar regions: " << regions.size() << endl;
-    */
+
     pclCloud = cloudCopy;
     cout << "calling lccp" << endl;
     lccpSeg();
     
-    //Draw Visualization (is this even doing anything?)
-    /*
-    for (size_t i = 0; i < regions.size(); i++)
-    {
-        Eigen::Vector3f centroid = regions[i].getCentroid();
-        Eigen::Vector4f model = regions[i].getCoefficients();
-        pcl::PointXYZ pt1 = pcl::PointXYZ(centroid[0], centroid[1], centroid[2]);
-        pcl::PointXYZ pt2 = pcl::PointXYZ(centroid[0] + (0.5f * model[0]),
-                                               centroid[1] + (0.5f * model[1]),
-                                               centroid[2] + (0.5f * model[2]));
-        sprintf(name, "normal_%lu", i);
 
-        contour->points = regions[i].getContour();
-        
-        //instead, map contour ---> original image?
-        for(size_t j = 0; j < contour->size(); j++)
-        {
-            result->points[j].r = 255;
-        }
-        sprintf(name, "plane_%02zu", i);
-    }
-    
-    pcl::PointCloud<PointXYZRGBA>::CloudVectorType clusters;
-    
-    if(regions.size() > 0)
-    {
-        std::vector<bool> plane_labels;
-        //plane_labels.resize(label_indices.size(), false);
-    }
-    
-    */
-    
-    //--------------------------------------------------------
-    //pclCloud = cloudCopy;
-    //showVisualizer();
     
     sensor_msgs::Image rosImage;
     pcl::toROSMsg(*result, rosImage);
@@ -123,7 +46,8 @@ void ObjSeg::updateVisualizer(pcl::visualization::PCLVisualizer::Ptr viewer, pcl
 {
     pcl::visualization::PointCloudColorHandlerRGBField<pcl::PointXYZRGBA> rgb(cloud);
     viewer->removePointCloud();
-    viewer->addPointCloud<pcl::PointXYZRGBA>(cloud, rgb);
+    //viewer->addPointCloud<pcl::PointXYZRGBA>(cloud, rgb);
+    viewer->addPointCloud(resultCloud);
     viewer->spinOnce(/*100*/);
 }
 
@@ -296,7 +220,8 @@ void ObjSeg::lccpSeg()
     //pcl::visualization::PCLVisualizer::Ptr viewer (new pcl::visualization::PCLVisualizer ("3D Viewer"));
     //viewer->setBackgroundColor (0, 0, 0);
     //viewer->registerKeyboardCallback (keyboardEventOccurred, 0);
-    viewer->addPointCloud(lccp_labeled_cloud, "maincloud");
+    resultCloud = lccp_labeled_cloud;
+    //viewer->addPointCloud(lccp_labeled_cloud, "maincloud");
     
     
     

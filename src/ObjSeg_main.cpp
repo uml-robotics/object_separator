@@ -2,8 +2,8 @@
  * File: ObjSeg_main.cpp
  * Author: James Kuczynski
  * Email: jkuczyns@cs.uml.edu
- * File Description: 
- *
+ * File Description: main funcion for class ObjSeg.  See ObjSeg.h for more details.
+ * 
  * 
  */
  
@@ -30,13 +30,20 @@ int main(int argc, char **argv)
 
     ObjSeg objSeg;
     NodeHandle nh;
-    Publisher* mainsPub = objSeg.getPublisher();
-    Subscriber sub = nh.subscribe<const PointCloud<PointXYZRGBA>::ConstPtr&>("/camera/depth_registered/points",
-                                                        1,
-                                                        &ObjSeg::callback,
-                                                        &objSeg);
+    Publisher* imagePub = objSeg.getImagePublisher();
+    Publisher* cloudPub = objSeg.getCloudPublisher();
+    Subscriber pointSub = nh.subscribe<const PointCloud<PointXYZRGB>::ConstPtr&>("/camera/depth_registered/points",
+                                                                                  1,
+                                                                                  &ObjSeg::cloudCallback,
+                                                                                  &objSeg);
+                                                        
+    Subscriber imageSub = nh.subscribe<sensor_msgs::Image>("/camera/rgb/image_rect_color",
+                                                             1,
+                                                             &ObjSeg::imageCallback,
+                                                             &objSeg);
 
-    *mainsPub = nh.advertise<sensor_msgs::Image>("/scooter/rgb/image_rect_color", 1);
+    *imagePub = nh.advertise<sensor_msgs::Image>("/scooter/rgb/image_rect_color", 1);
+    *cloudPub = nh.advertise<pcl::PointCloud<pcl::PointXYZRGB> /*sensor_msgs::PointCloud2*/>("/scooter/depth_registered/points", 1);
 
     spin();
     

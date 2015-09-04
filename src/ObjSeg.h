@@ -5,9 +5,10 @@
  * File Description: This class performs object segmentation using PCL's LCCPSegmentation API.  It utilizes the most current unstable versions of PCL and PCL_ROS (1.8).  See the README file for more details.
  *
  * References: https://github.com/PointCloudLibrary/pcl/blob/master/apps/src/openni_organized_multi_plane_segmentation.cpp
-               https://github.com/DeepBlue14/raptor/blob/master/measurements/src/Raptor_Segmentation.cpp
-               http://docs.pointclouds.org/trunk/classpcl_1_1_l_c_c_p_segmentation.html
+ *             https://github.com/DeepBlue14/raptor/blob/master/measurements/src/Raptor_Segmentation.cpp
+ *             http://docs.pointclouds.org/trunk/classpcl_1_1_l_c_c_p_segmentation.html
  *
+ * See also: http://pointclouds.org/documentation/tutorials/region_growing_rgb_segmentation.php#region-growing-rgb-segmentation
  */
 
 #ifndef OBJ_SEG_H
@@ -27,7 +28,9 @@
 // PCL
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
+#include <pcl/PCLImage.h>
 #include <pcl/io/io.h>
+#include <pcl/io/point_cloud_image_extractors.h>
 #include <pcl/common/time.h>
 #include <pcl/common/angles.h>
 #include <pcl/features/integral_image_normal.h>
@@ -40,11 +43,11 @@
 #include <pcl/segmentation/extract_polygonal_prism_data.h>
 #include <pcl/segmentation/edge_aware_plane_comparator.h>
 #include <pcl/segmentation/supervoxel_clustering.h>
+#include <pcl/segmentation/conditional_euclidean_clustering.h>
 #include <pcl/filters/extract_indices.h>
 #include <pcl/filters/passthrough.h>
+#include <pcl/filters/voxel_grid.h>
 #include <pcl/surface/convex_hull.h>
-#include <pcl/visualization/cloud_viewer.h>
-#include <pcl/visualization/pcl_visualizer.h>
 
 #include <pcl/segmentation/lccp_segmentation.h> //PCL version 1.8.0 or greater
 
@@ -86,11 +89,15 @@ using namespace std;
 class ObjSeg
 {
     private:
-        pcl::PointCloud<PointXYZRGBA>::ConstPtr pclCloud;
+        pcl::PointCloud<PointXYZRGB>::ConstPtr pclCloud;
         pcl::PointCloud<pcl::Normal>::Ptr m_normalCloud;
-        pcl::PointCloud<pcl::PointXYZL>::Ptr resultCloud;
-        pcl::visualization::PCLVisualizer::Ptr viewer;
-	    Publisher* pub;
+        geometry_msgs::PointConstPtr pixelPoint;
+        geometry_msgs::Point realWorldCoorPoint;
+        sensor_msgs::Image rosImage;
+        pcl::PointCloud<pcl::PointXYZRGB>::Ptr resultCloud;
+        cv::Mat m_image;
+	    Publisher* imagePub;
+	    Publisher* cloudPub;
 
     public:
         /**
@@ -98,26 +105,9 @@ class ObjSeg
          */
 	    ObjSeg();
 	    
-	    /**
-	     * This method initializes the 3D visualizer.
-	     *
-	     * @param cloud an empty pcl::PointCloud object to initialize the viewer.
-	     * @return a reference to the viewer.
-	     */
-	    pcl::visualization::PCLVisualizer::Ptr initViewer(pcl::PointCloud<PointXYZRGBA>::ConstPtr cloud);
-	    
-	    /**
-	     * This method updates the pointcloud viewer.
-	     *
-	     * @param viewer reference to the pointcloud viewer.
-	     * @param cloud reference to the current processed pointcloud.
-	     */
-	    void updateVisualizer(pcl::visualization::PCLVisualizer::Ptr viewer, pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr cloud);
-	    
-	    /**
-	     * This method displays the viewer.
-	     */
-	    void showVisualizer();
+
+
+
 	    
 	    /**
 	     * This method is the ROS callback.  It converts the ROS pointcloud to a PCL pointcloud,
@@ -125,7 +115,17 @@ class ObjSeg
 	     *
 	     * @param input the ROS pointcloud.
 	     */
-	    void callback(const PointCloud<PointXYZRGBA>::ConstPtr& input);
+	    void cloudCallback(const PointCloud<PointXYZRGB>::ConstPtr& input);
+	    
+	    /**
+	     *
+	     */
+	     void imageCallback(const sensor_msgs::ImageConstPtr& rosImage);
+	    
+	    /**
+	     * This method blacks out features more then 2 meters(?) away.
+	     */
+	    void distanceFilter(pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& cloud);
 	    
 	    /**
 	     * This method performs a PCL LCCP segmentation.
@@ -136,20 +136,42 @@ class ObjSeg
          * TODO implement.
          */
         void llcpViewSetup();
-        //void displayPlanarRegions
-        //void displayEuclideanClusters
-        //void displayCurvature
-        //void displayDistanceMap
-        //void removePreviousDataFromScreen
-        //...
-        //...
+        
+        
+        /**
+         * 
+         */
+         uint32_t computeMaxLabel(pcl::PointCloud<PointXYZL>::Ptr labeledCloud);
+        
+        /**
+         * This method copies the rgb values from an OpenCV matrix to a PCL pointcloud.
+         *
+         * @param cvImage
+         * @return 
+         */
+        pcl::PointCloud<pcl::PointXYZRGB>::Ptr mapCvMat2PclCloud(Mat cvImage);
+        
+        /**
+         * Copies the rgb values from a PCL pointcloud to a OpenCV matrix.
+         *
+         * @param cloud
+         * @return 
+         */
+        cv::Mat mapPclCloud2CvMat(pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud);
+        
         
         /**
          * Accessor method for the ROS publisher.
          *
          * @return a pointer to the ROS publisher.
          */
-	    Publisher* getPublisher();
+	    Publisher* getImagePublisher();
+	    
+	    /**
+	     *
+	     *
+	     */
+	    Publisher* getCloudPublisher();
 	    
 	    /**
 	     * Destructor.

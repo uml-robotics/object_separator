@@ -2,55 +2,72 @@
 
 ObjSeg::ObjSeg()
 {
-    pub = new Publisher();
-    pcl::PointCloud<PointXYZRGBA>::Ptr init_cloud_ptr (new pcl::PointCloud<PointXYZRGBA>);
-    viewer = initViewer(init_cloud_ptr);
+    imagePub = new Publisher();
+    cloudPub = new Publisher();
+    pcl::PointCloud<PointXYZRGB>::Ptr init_cloud_ptr(new pcl::PointCloud<PointXYZRGB>);
 }
 
 
-pcl::visualization::PCLVisualizer::Ptr ObjSeg::initViewer(pcl::PointCloud<PointXYZRGBA>::ConstPtr cloud)
+void ObjSeg::cloudCallback(const PointCloud<PointXYZRGB>::ConstPtr& input)
 {
-    pcl::visualization::PCLVisualizer::Ptr viewer(new pcl::visualization::PCLVisualizer("Viewer") );
-    viewer->setBackgroundColor (0, 0, 0);
-    pcl::visualization::PointCloudColorHandlerCustom<PointXYZRGBA> single_color(cloud, 0, 255, 0);
-    viewer->setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 1, "cloud");
-    viewer->setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_OPACITY, 0.15, "cloud");
-    viewer->addCoordinateSystem(1.0);
-    viewer->initCameraParameters();
-    
-    return viewer;
-}
-
-
-void ObjSeg::callback(const PointCloud<PointXYZRGBA>::ConstPtr& input)
-{
-    PointCloud<PointXYZRGBA>::ConstPtr cloudCopy(new PointCloud<PointXYZRGBA>);
-    PointCloud<PointXYZRGBA>::Ptr result(new PointCloud<PointXYZRGBA>);
+    PointCloud<PointXYZRGB>::ConstPtr cloudCopy(new PointCloud<PointXYZRGB>);
+    PointCloud<PointXYZRGB>::Ptr result(new PointCloud<PointXYZRGB>);
     cloudCopy = input;
     copyPointCloud(*cloudCopy, *result);
 
     pclCloud = cloudCopy;
 
+    distanceFilter(pclCloud);
+
     lccpSeg();
     
-    sensor_msgs::Image rosImage;
-    pcl::toROSMsg(*result, rosImage);
-    pub->publish(rosImage);
+    cv_bridge::CvImage out_msg;
+    out_msg.header = rosImage.header;
+    out_msg.encoding = sensor_msgs::image_encodings::BGR8;
+    out_msg.image = m_image;
+    imagePub->publish(out_msg.toImageMsg() );
+    cloudPub->publish(resultCloud);
 }
 
 
-void ObjSeg::updateVisualizer(pcl::visualization::PCLVisualizer::Ptr viewer, pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr cloud)
+void ObjSeg::imageCallback(const sensor_msgs::ImageConstPtr& rosImage)
 {
-    pcl::visualization::PointCloudColorHandlerRGBField<pcl::PointXYZRGBA> rgb(cloud);
-    viewer->removePointCloud();
-    viewer->addPointCloud(resultCloud);
-    viewer->spinOnce(/*100*/);
+    this->rosImage = *rosImage;
+    cv_bridge::CvImagePtr cv_ptr;
+    cv::Mat cvImage;
+    
+    try
+    {
+        cv_ptr = cv_bridge::toCvCopy(rosImage, sensor_msgs::image_encodings::BGR8);
+    }
+    catch(cv_bridge::Exception& e)
+    {
+        ROS_ERROR("cv_bridge exception: %s", e.what() );
+    }
+
+    cvImage = cv_ptr->image;
+
+    m_image = cvImage;
 }
 
 
-void ObjSeg::showVisualizer()
+void ObjSeg::distanceFilter(pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& cloud)
 {
-    updateVisualizer(viewer, pclCloud);
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr resCloud(new PointCloud<PointXYZRGB>);
+    *resCloud = *cloud;
+
+    for(size_t i = 0; i < cloud->points.size(); i++)
+    {
+        if(!(cloud->points[i].z < 2.0) && !(cloud->points[i].z > 0.1) )
+        {
+            resCloud->points[i].r = 0;
+            resCloud->points[i].g = 0;
+            resCloud->points[i].b = 0;
+        }
+    }
+
+    PointCloud<PointXYZRGB>::ConstPtr tmp(resCloud);
+    pclCloud = tmp;
 }
 
 
@@ -58,7 +75,7 @@ void ObjSeg::lccpSeg()
 {
     uint k_factor = 0; //if you want to use extended convexity, set to 1
 
-    // Default values of parameters before parsing
+    // Values of parameters before parsing
     // Supervoxel Stuff
     float voxel_resolution = 0.0075f;
     float seed_resolution = 0.03f;
@@ -74,27 +91,16 @@ void ObjSeg::lccpSeg()
     uint32_t min_segment_size = 0;
     bool use_extended_convexity = false;
     bool use_sanity_criterion = false;
-    
-    // Normals stuff (not implemented)
-    /*pcl::PointCloud<pcl::Normal>::Ptr normals (new pcl::PointCLoud<pcl::Normal>);
-    bool has_normals = false;
-    if(pcl::getFieldIndex(pclCloud, "normal_x") >= 0)
-    {
-        
-    }*/
 
-    pcl::SupervoxelClustering<PointXYZRGBA> superVox(voxel_resolution, seed_resolution);
-    superVox.setUseSingleCameraTransform(use_single_cam_transform); //!!!Not available in verion 1.7; requires >= 1.8.0!!!
+    pcl::SupervoxelClustering<PointXYZRGB> superVox(voxel_resolution, seed_resolution);
+    superVox.setUseSingleCameraTransform(use_single_cam_transform);
     superVox.setInputCloud(pclCloud);
-    
-    //if(has_normals)
-        //superVox.setNormalCloud(m_normalCloud);
+
     superVox.setColorImportance(color_importance);
     superVox.setSpatialImportance(spatial_importance);
     superVox.setNormalImportance(normal_importance);
-    std::map<uint32_t, pcl::Supervoxel<PointXYZRGBA>::Ptr> supervoxel_clusters;
-    
-    //PCL_INFO("About to extract supervoxels\n");
+    std::map<uint32_t, pcl::Supervoxel<PointXYZRGB>::Ptr> supervoxel_clusters;
+
     superVox.extract(supervoxel_clusters);
     
     if(use_supervoxel_refinement)
@@ -103,20 +109,14 @@ void ObjSeg::lccpSeg()
         superVox.refineSupervoxels(2, supervoxel_clusters);
     }
     
-    std::stringstream temp;
-    //temp << " Number of supervoxels: " << supervoxel_clusters.size() << "\n";
-    //PCL_INFO(temp.str().c_str() );
-    
-    //PCL_INFO("About to process supervoxel adjacency\n");
     std::multimap<uint32_t, uint32_t> supervoxel_adjacency;
     superVox.getSupervoxelAdjacency(supervoxel_adjacency);
     
     // Get the cloud of supervoxel centroid with normals and the colored cloud with supervoxel coloring (this is used for visulization)
-    pcl::PointCloud<pcl::PointNormal>::Ptr sv_centroid_normal_cloud = pcl::SupervoxelClustering<PointXYZRGBA>::makeSupervoxelNormalCloud (supervoxel_clusters);
+    pcl::PointCloud<pcl::PointNormal>::Ptr sv_centroid_normal_cloud = pcl::SupervoxelClustering<PointXYZRGB>::makeSupervoxelNormalCloud (supervoxel_clusters);
 
     // The Main Step: Perform LCCPSegmentation
-    //PCL_INFO("About to run LCCPSegmentation\n");
-    pcl::LCCPSegmentation<PointXYZRGBA> lccp;
+    pcl::LCCPSegmentation<PointXYZRGB> lccp;
     lccp.setConcavityToleranceThreshold(concavity_tolerance_threshold);
     lccp.setSanityCheck(use_sanity_criterion);
     lccp.setSmoothnessCheck(true, voxel_resolution, seed_resolution, smoothness_threshold);
@@ -125,90 +125,114 @@ void ObjSeg::lccpSeg()
     
     if(min_segment_size > 0)
     {
-        //PCL_INFO("About to merge small segments\n");
         lccp.mergeSmallSegments(min_segment_size);
     }
     
-    //PCL_INFO("Interpolation voxel cloud -> input cloud and relabeling\n");
     pcl::PointCloud<pcl::PointXYZL>::Ptr sv_labeled_cloud = superVox.getLabeledCloud();
     pcl::PointCloud<pcl::PointXYZL>::Ptr lccp_labeled_cloud = sv_labeled_cloud->makeShared();
     lccp.relabelCloud(*lccp_labeled_cloud);
-    pcl::LCCPSegmentation<PointXYZRGBA>::SupervoxelAdjacencyList sv_adjacency_list;
-    lccp.getSVAdjacencyList(sv_adjacency_list); // Needed for visualization
-    
-    //cout << "# of supervoxel clusters: " << supervoxel_clusters.size() << endl;
-    
-    //visualization stuff
-    typedef LCCPSegmentation<PointXYZRGBA>::VertexIterator VertexIterator;
-    typedef LCCPSegmentation<PointXYZRGBA>::AdjacencyIterator AdjacencyIterator;
-    typedef LCCPSegmentation<PointXYZRGBA>::EdgeID EdgeID;
-    
-    std::set<EdgeID> edge_drawn;
-    
-    const unsigned char convex_color [3] = {255, 255, 255};
-    const unsigned char concave_color [3] = {255, 0, 0};
-    const unsigned char* color;
-    
-    //The vertices in the supervoxel adjacency list are the supervoxel centroids
-    //This iterates through them, finding the edges
-    std::pair<VertexIterator, VertexIterator> vertex_iterator_range;
-    vertex_iterator_range = boost::vertices (sv_adjacency_list);
-    
-    
-    // Create a cloud of the voxelcenters and map: VertexID in adjacency graph -> Point index in cloud
-    vtkSmartPointer<vtkPoints> points = vtkSmartPointer<vtkPoints>::New ();
-    vtkSmartPointer<vtkCellArray> cells = vtkSmartPointer<vtkCellArray>::New ();
-    vtkSmartPointer<vtkUnsignedCharArray> colors = vtkSmartPointer<vtkUnsignedCharArray>::New ();
-    colors->SetNumberOfComponents (3);
-    colors->SetName ("Colors");
-    
-    // Create a polydata to store everything in
-    vtkSmartPointer<vtkPolyData> polyData = vtkSmartPointer<vtkPolyData>::New ();
-    for (VertexIterator itr = vertex_iterator_range.first; itr != vertex_iterator_range.second; ++itr)
-    {
-      const uint32_t sv_label = sv_adjacency_list[*itr];
-      std::pair<AdjacencyIterator, AdjacencyIterator> neighbors = boost::adjacent_vertices (*itr, sv_adjacency_list);
 
-      for (AdjacencyIterator itr_neighbor = neighbors.first; itr_neighbor != neighbors.second; ++itr_neighbor)
-      {
-        EdgeID connecting_edge = boost::edge (*itr, *itr_neighbor, sv_adjacency_list).first; //Get the edge connecting these supervoxels
-        if (sv_adjacency_list[connecting_edge].is_convex)
-          color = convex_color;
-        else
-          color = concave_color;
-        
-        // two times since we add also two points per edge
-        colors->InsertNextTupleValue (color);
-        colors->InsertNextTupleValue (color);
-        
-        pcl::Supervoxel<PointXYZRGBA>::Ptr supervoxel = supervoxel_clusters.at (sv_label);
-        pcl::PointXYZRGBA vert_curr = supervoxel->centroid_;
-        
-        
-        const uint32_t sv_neighbor_label = sv_adjacency_list[*itr_neighbor];
-        pcl::Supervoxel<PointXYZRGBA>::Ptr supervoxel_neigh = supervoxel_clusters.at (sv_neighbor_label);
-        pcl::PointXYZRGBA vert_neigh = supervoxel_neigh->centroid_;
-        
-        points->InsertNextPoint (vert_curr.data);
-        points->InsertNextPoint (vert_neigh.data);
-          
-        // Add the points to the dataset
-        vtkSmartPointer<vtkPolyLine> polyLine = vtkSmartPointer<vtkPolyLine>::New ();
-        polyLine->GetPointIds ()->SetNumberOfIds (2);
-        polyLine->GetPointIds ()->SetId (0, points->GetNumberOfPoints ()-2);
-        polyLine->GetPointIds ()->SetId (1, points->GetNumberOfPoints ()-1);
-        cells->InsertNextCell (polyLine);
-      }
+    pcl::PointCloud<PointXYZRGB>::Ptr convCloud(new PointCloud<PointXYZRGB>);
+    *convCloud = *pclCloud;
+    convCloud->width = lccp_labeled_cloud->width;
+    convCloud->height = lccp_labeled_cloud->height;
+
+    //color objects
+    for(size_t i = 0; i < lccp_labeled_cloud->size(); i++)
+    {
+        convCloud->at(i).x = lccp_labeled_cloud->at(i).x;
+        convCloud->at(i).y = lccp_labeled_cloud->at(i).y;
+        convCloud->at(i).z = lccp_labeled_cloud->at(i).z;
+        if(lccp_labeled_cloud->at(i).label > 2)
+        {
+            convCloud->at(i).r = 100;
+            convCloud->at(i).g = 200;
+            convCloud->at(i).b = 0;
+        }
+    }
+     
+    //this will be passed by Android
+    int androidX = 100, androidY = 100;
+     
+    uint32_t theChosenLabel;
+    int pclCount = 0;
+    for(size_t y = 0; y < m_image.rows; y++)
+    {
+        for(size_t x = 0; x < m_image.cols; x++)
+        {
+            if(y == androidY && x == androidX)
+            {
+                realWorldCoorPoint.x = lccp_labeled_cloud->points[pclCount].x;
+                realWorldCoorPoint.y = lccp_labeled_cloud->points[pclCount].y;
+                realWorldCoorPoint.z = lccp_labeled_cloud->points[pclCount].z;
+                theChosenLabel = lccp_labeled_cloud->points[pclCount].label;
+                break;
+            }
+            pclCount++;
+        } // end of outer for loop
     }
     
-    polyData->SetPoints (points);
-    // Add the lines to the dataset
-    polyData->SetLines (cells);
-    polyData->GetPointData ()->SetScalars (colors);
+    vector<int> chosenLabelIndices;
+    for(size_t i = 0; i < lccp_labeled_cloud->size(); i++)
+    {
+        if(lccp_labeled_cloud->at(i).label == theChosenLabel)
+        {
+            convCloud->at(i).r = 0;
+            convCloud->at(i).g = 0;
+            convCloud->at(i).b = 200;
+            chosenLabelIndices.push_back(i);
+        }
+    }
 
-    //Update Visualizer
-    resultCloud = lccp_labeled_cloud;
-    showVisualizer();
+    //map cloud colors --> image
+    Point minPoint(1000, 1000);
+    Point maxPoint(0, 0);
+
+    for(size_t i = 0; i < chosenLabelIndices.size(); i++)
+    {
+        int currIndex = chosenLabelIndices.at(i);
+        for(size_t currRowNum = 0; currRowNum < 479; currRowNum++)
+        {
+            if(currIndex >= 0 && currIndex < 640)
+            {
+                if(currIndex < minPoint.x)
+                {
+                    minPoint.x = currIndex;
+                }
+                else if(currIndex > maxPoint.x)
+                {
+                    maxPoint.x = currIndex;
+                }
+                
+                if(currRowNum < minPoint.y)
+                {
+                    minPoint.y = currRowNum;
+                }
+                else if(currRowNum > maxPoint.y)
+                {
+                    maxPoint.y = currRowNum;
+                }
+                break;
+            }
+            else
+            {
+                currIndex -= 640;
+            }
+            
+        }
+        
+
+    }
+
+    const Point CAMERA_OFFSET(15, 15);
+    rectangle(m_image, minPoint, maxPoint+CAMERA_OFFSET, Scalar(0, 255, 0), 14, 8);
+    
+    
+    //imshow("result", m_image);
+    //waitKey(3);
+    
+    //Update result to publish
+    resultCloud = convCloud;
 }
 
 
@@ -218,9 +242,75 @@ void ObjSeg::llcpViewSetup()
 }
 
 
-Publisher* ObjSeg::getPublisher()
+uint32_t ObjSeg::computeMaxLabel(pcl::PointCloud<PointXYZL>::Ptr labeledCloud)
 {
-    return pub;
+    uint32_t maxLabel = 0;
+    
+    for(size_t i = 0; i < labeledCloud->size(); i++)
+    {
+        if(labeledCloud->at(i).label > maxLabel)
+        {
+            maxLabel = labeledCloud->at(i).label;
+        }
+    }
+    
+    return maxLabel;
+}
+
+
+pcl::PointCloud<pcl::PointXYZRGB>::Ptr ObjSeg::mapCvMat2PclCloud(Mat cvImage)
+{
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud;
+
+    int pclCount = 0;
+    for(size_t y = 0; y < cvImage.rows; y++)
+    {
+        for(size_t x = 0; x < cvImage.cols; x++)
+        {
+            Vec3b color = cvImage.at<Vec3b>(Point(x,y));
+            cloud->points[pclCount].r = color.val[2];
+            cloud->points[pclCount].g = color.val[1];
+            cloud->points[pclCount].b = color.val[0];
+            
+            //cout << "(post) pixel z: " << cloud->points[pclCount].z << endl;
+            pclCount++;
+        } // end of outer for loop
+    }
+}
+
+
+cv::Mat ObjSeg::mapPclCloud2CvMat(pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud)
+{
+    Mat cvImage = m_image;
+    
+    int pclCount = 0;
+    for(size_t y = 0; y < cvImage.rows; y++)
+    {
+        for(size_t x = 0; x < cvImage.cols; x++)
+        {
+            cvImage.at<Vec3b>(Point(x, y)).val[2] = cloud->points[pclCount].r;
+            cvImage.at<Vec3b>(Point(x, y)).val[1] = cloud->points[pclCount].g;
+            cvImage.at<Vec3b>(Point(x, y)).val[0] = cloud->points[pclCount].b;
+            pclCount++;
+        }
+    }
+    
+    imshow("mapPclCloud2CvMat(...)", cvImage);
+    waitKey(3);
+    
+    return cvImage;
+}
+
+
+Publisher* ObjSeg::getImagePublisher()
+{
+    return imagePub;
+}
+
+
+Publisher* ObjSeg::getCloudPublisher()
+{
+    return cloudPub;
 }
 
 

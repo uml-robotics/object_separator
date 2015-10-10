@@ -89,8 +89,8 @@ using namespace std;
 class ObjSeg
 {
     private:
+        bool gotNewPoint; //flag.  This is turned on whenever a new point is recieved, and shut off after the point has been processed.
         pcl::PointCloud<PointXYZRGB>::ConstPtr pclCloud;
-        pcl::PointCloud<pcl::Normal>::Ptr m_normalCloud;
         geometry_msgs::PointConstPtr pixelPoint;
         geometry_msgs::Point realWorldCoorPoint;
         sensor_msgs::Image rosImage;
@@ -106,9 +106,9 @@ class ObjSeg
 	    ObjSeg();
 	    
 
+        void pointCallback(const geometry_msgs::PointConstPtr& pixelPoint);
 
 
-	    
 	    /**
 	     * This method is the ROS callback.  It converts the ROS pointcloud to a PCL pointcloud,
 	     * calls segmentation and visualization methods. TODO Publish data.
@@ -137,7 +137,6 @@ class ObjSeg
          */
         void llcpViewSetup();
         
-        
         /**
          * 
          */
@@ -158,7 +157,6 @@ class ObjSeg
          * @return 
          */
         cv::Mat mapPclCloud2CvMat(pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud);
-        
         
         /**
          * Accessor method for the ROS publisher.

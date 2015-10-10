@@ -2,9 +2,17 @@
 
 ObjSeg::ObjSeg()
 {
+    gotNewPoint = false;
     imagePub = new Publisher();
     cloudPub = new Publisher();
     pcl::PointCloud<PointXYZRGB>::Ptr init_cloud_ptr(new pcl::PointCloud<PointXYZRGB>);
+}
+
+
+void ObjSeg::pointCallback(const geometry_msgs::PointConstPtr& pixelPoint)
+{
+    this->pixelPoint = pixelPoint;
+    gotNewPoint = true;
 }
 
 
@@ -17,16 +25,18 @@ void ObjSeg::cloudCallback(const PointCloud<PointXYZRGB>::ConstPtr& input)
 
     pclCloud = cloudCopy;
 
-    distanceFilter(pclCloud);
-
-    lccpSeg();
-    
-    cv_bridge::CvImage out_msg;
-    out_msg.header = rosImage.header;
-    out_msg.encoding = sensor_msgs::image_encodings::BGR8;
-    out_msg.image = m_image;
-    imagePub->publish(out_msg.toImageMsg() );
-    cloudPub->publish(resultCloud);
+    if(gotNewPoint == true)
+    {
+        distanceFilter(pclCloud);
+        lccpSeg();
+        
+        cv_bridge::CvImage out_msg;
+        out_msg.header = rosImage.header;
+        out_msg.encoding = sensor_msgs::image_encodings::BGR8;
+        out_msg.image = m_image;
+        imagePub->publish(out_msg.toImageMsg() );
+        cloudPub->publish(resultCloud);
+    }
 }
 
 
@@ -233,6 +243,7 @@ void ObjSeg::lccpSeg()
     
     //Update result to publish
     resultCloud = convCloud;
+    gotNewPoint = false;
 }
 
 

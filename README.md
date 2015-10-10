@@ -16,8 +16,7 @@ This project uses PCL's new LCCP segmentation to segment the objects in an envir
 ###**Dependencies**
 
 - PCL >= 1.8.0
-- pcl_ros jade unstable branch
-- VTK (Ubuntu 14.04 default version)
+- pcl_ros Jade unstable branch
 
 ###**Build & Run**
 
@@ -33,10 +32,10 @@ roslaunch openni2_launch openni2.launch
 rosrun object_separator object_separator
 ```
 
-**NOTE**: When the PCL Visualizer first starts, the screen will be filled with these green and red blobs of color.  However, once you move rotate the visualizer scene even a little, it will display the correct pointcloud.
+to test that it is working properly, create a simple publisher to "chatter" geometry_msgs::Point objects to tablet/geometry_msgs/point.  Here is a sample one:
+```
+git clone future_ros_ip_redirection_node_repo
+rosrun ros_ip_redirection chatterbot
+```
 
-
-###**Bugs & TODO**
-
-- ROS publishing has not been implemented yet.
 

@@ -147,7 +147,8 @@ void ObjSeg::lccpSeg()
     convCloud->width = lccp_labeled_cloud->width;
     convCloud->height = lccp_labeled_cloud->height;
 
-    //color objects
+/*
+    //color objects (two colors only)
     for(size_t i = 0; i < lccp_labeled_cloud->size(); i++)
     {
         convCloud->at(i).x = lccp_labeled_cloud->at(i).x;
@@ -160,10 +161,42 @@ void ObjSeg::lccpSeg()
             convCloud->at(i).b = 0;
         }
     }
+*/
+    vector<int> colors;
+    //color objects (each gets its own color)
+    for(size_t i = 0; i < lccp_labeled_cloud->size(); i++)
+    {
+        convCloud->at(i).x = lccp_labeled_cloud->at(i).x;
+        convCloud->at(i).y = lccp_labeled_cloud->at(i).y;
+        convCloud->at(i).z = lccp_labeled_cloud->at(i).z;
+        //cout << "HERE (1)" << endl;
+        if(colors.size() < (lccp_labeled_cloud->at(i).label*3)-1)
+        {
+            //cout << "HERE (2)" << endl;
+            colors.push_back( (rand() % 100) + 1);
+            colors.push_back( (rand() % 100) + 1);
+            colors.push_back( (rand() % 100) + 1);
+            convCloud->at(i).r = colors.at(lccp_labeled_cloud->at(i).label);
+            convCloud->at(i).g = colors.at(lccp_labeled_cloud->at(i).label+1);
+            convCloud->at(i).b = colors.at(lccp_labeled_cloud->at(i).label+2);
+        }
+        else
+        {
+            //cout << "HERE (3)" << endl;
+            convCloud->at(i).r = colors.at(lccp_labeled_cloud->at(i).label);
+            convCloud->at(i).g = colors.at(lccp_labeled_cloud->at(i).label+1);
+            convCloud->at(i).b = colors.at(lccp_labeled_cloud->at(i).label+2);
+        }
+        
+    }
+    cout << "number of objects: " << colors.size() << endl;
+
      
     //this will be passed by Android
-    int androidX = 100, androidY = 100;
-     
+    int androidX = pixelPoint->x, androidY = pixelPoint->y;
+    //cout << "(" << androidX << ", " << androidY << ")" << endl;
+
+    // BEGIN bounding-box stuff---------------------------------------------
     uint32_t theChosenLabel;
     int pclCount = 0;
     for(size_t y = 0; y < m_image.rows; y++)
@@ -235,7 +268,8 @@ void ObjSeg::lccpSeg()
     }
 
     const Point CAMERA_OFFSET(15, 15);
-    rectangle(m_image, minPoint, maxPoint+CAMERA_OFFSET, Scalar(0, 255, 0), 14, 8);
+    if( (maxPoint.x - minPoint.x) < 300)
+        rectangle(m_image, minPoint, maxPoint+CAMERA_OFFSET, Scalar(0, 255, 0), 14, 8);
     
     
     //imshow("result", m_image);

@@ -185,3 +185,10 @@ target_link_libraries(object_separator ${catkin_LIBRARIES})
 target_link_libraries(object_separator ${OpenCV_LIBRARIES})
 #target_link_libraries(object_separator ${VTK_LIBRARIES})
 target_link_libraries(object_separator ${PCL_LIBRARIES})
+
+add_executable(entity_boxer src/EntityBoxer_main.cpp
+                                src/EntityBoxer.cpp)
+target_link_libraries(entity_boxer ${catkin_LIBRARIES})
+target_link_libraries(entity_boxer ${OpenCV_LIBRARIES})
+target_link_libraries(entity_boxer ${PCL_LIBRARIES})
+
